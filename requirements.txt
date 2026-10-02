@@ -1,59 +1,11 @@
-# ==========================================
-# LLM / OpenAI
-# ==========================================
-openai
-langchain-openai
-
-# ==========================================
-# LangChain Core + LCEL
-# ==========================================
+streamlit
 langchain
 langchain-core
 langchain-community
 langchain-groq
-
-# ==========================================
-# React Agent / Agent Framework
-# ==========================================
-langgraph
-langgraph-prebuilt
-
-# ==========================================
-# Tavily Web Search
-# ==========================================
-tavily-python
 langchain-tavily
-
-# ==========================================
-# Web Scraping - BeautifulSoup
-# ==========================================
+langchain-openai
+groq
+python-dotenv
 beautifulsoup4
 requests
-lxml
-
-# ==========================================
-# Environment Variables
-# ==========================================
-python-dotenv
-
-# ==========================================
-# Backend API
-# ==========================================
-Flask
-flask-cors
-
-# ==========================================
-# Data Validation
-# ==========================================
-pydantic
-
-# ==========================================
-# HTTP / Async Requests
-# ==========================================
-httpx
-aiohttp
-
-# ==========================================
-# Terminal Output / Debugging
-# ==========================================
-rich
