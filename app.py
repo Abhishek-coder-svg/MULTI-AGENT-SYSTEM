@@ -2,7 +2,6 @@ import time
 import traceback
 
 import streamlit as st
-from dotenv import load_dotenv
 
 from agents import (
     build_search_agent,
@@ -11,7 +10,10 @@ from agents import (
     critic_chain,
 )
 
-load_dotenv()
+
+# =========================================================
+# PAGE CONFIGURATION
+# =========================================================
 
 st.set_page_config(
     page_title="Multi-Agent Research Assistant",
@@ -20,11 +22,12 @@ st.set_page_config(
 )
 
 
-# -----------------------------------
-# Helper function
-# -----------------------------------
+# =========================================================
+# HELPER FUNCTION
+# =========================================================
 
 def to_text(content):
+
     if hasattr(content, "content"):
         content = content.content
 
@@ -32,6 +35,7 @@ def to_text(content):
         return content
 
     if isinstance(content, list):
+
         return "\n".join(
             block.get("text", str(block))
             if isinstance(block, dict)
@@ -42,11 +46,12 @@ def to_text(content):
     return str(content)
 
 
-# -----------------------------------
-# Retry function for Groq 429 errors
-# -----------------------------------
+# =========================================================
+# RETRY FUNCTION
+# =========================================================
 
 def retry_call(function, max_retries=3):
+
     for attempt in range(max_retries):
 
         try:
@@ -54,9 +59,11 @@ def retry_call(function, max_retries=3):
 
         except Exception as e:
 
-            error_text = str(e)
+            error_text = str(e).lower()
 
+            # Handle Groq rate limit
             if "429" in error_text or "rate_limit" in error_text:
+
                 wait_time = 5 * (attempt + 1)
 
                 st.warning(
@@ -75,22 +82,23 @@ def retry_call(function, max_retries=3):
     )
 
 
-# -----------------------------------
-# Load agents only once
-# -----------------------------------
+# =========================================================
+# LOAD AGENTS ONLY ONCE
+# =========================================================
 
 @st.cache_resource
 def get_agents():
 
     search_agent = build_search_agent()
+
     reader_agent = build_reader_agent()
 
     return search_agent, reader_agent
 
 
-# -----------------------------------
-# Main pipeline
-# -----------------------------------
+# =========================================================
+# MAIN RESEARCH PIPELINE
+# =========================================================
 
 def run_pipeline(topic, status):
 
@@ -98,9 +106,10 @@ def run_pipeline(topic, status):
 
     state = {}
 
-    # =================================
+
+    # =====================================================
     # STEP 1 - SEARCH
-    # =================================
+    # =====================================================
 
     status.update(
         label="🔎 Step 1/4 - Searching...",
@@ -118,24 +127,32 @@ Find recent and reliable information about:
 {topic}
 
 Use the web search tool.
+
 Return only the most important information.
+
+Include useful URLs whenever possible.
 """
                 )
             ]
         })
     )
 
+
+    # Get final agent response
     state["search_results"] = to_text(
         search_result["messages"][-1].content
     )
 
-    # Keep only limited text
-    state["search_results"] = state["search_results"][:1000]
+
+    # Limit search output
+    state["search_results"] = (
+        state["search_results"][:2000]
+    )
 
 
-    # =================================
+    # =====================================================
     # STEP 2 - READER
-    # =================================
+    # =====================================================
 
     status.update(
         label="📄 Step 2/4 - Reading...",
@@ -148,47 +165,55 @@ Return only the most important information.
                 (
                     "user",
                     f"""
-From the search results below, select ONE
-direct and reliable URL.
-
-Then use the web scraping tool to read it.
-
-Search results:
+From the search results below:
 
 {state["search_results"]}
 
-Return only the important extracted information.
+Select one direct and reliable URL.
+
+Then use the web scraping tool to read that URL.
+
+Return only the important information extracted
+from the webpage.
+
+Search Results:
+{state["search_results"]}
 """
                 )
             ]
         })
     )
 
+
     state["scraped_content"] = to_text(
         reader_result["messages"][-1].content
     )
 
-    # Keep scraped information small
+
+    # Limit scraped information
     state["scraped_content"] = (
-        state["scraped_content"][:1800]
+        state["scraped_content"][:3000]
     )
 
 
-    # =================================
+    # =====================================================
     # STEP 3 - WRITER
-    # =================================
+    # =====================================================
 
     status.update(
         label="✍️ Step 3/4 - Writing report...",
         state="running"
     )
 
+
     research = (
-        f"SEARCH RESULTS:\n"
-        f"{state['search_results']}\n\n"
-        f"SCRAPED CONTENT:\n"
-        f"{state['scraped_content']}"
+        "SEARCH RESULTS:\n\n"
+        + state["search_results"]
+        + "\n\n"
+        + "SCRAPED CONTENT:\n\n"
+        + state["scraped_content"]
     )
+
 
     state["report"] = retry_call(
         lambda: writer_chain.invoke({
@@ -197,25 +222,28 @@ Return only the important extracted information.
         })
     )
 
+
     state["report"] = to_text(
         state["report"]
     )
 
 
-    # =================================
+    # =====================================================
     # STEP 4 - CRITIC
-    # =================================
+    # =====================================================
 
     status.update(
         label="🧐 Step 4/4 - Reviewing...",
         state="running"
     )
 
+
     state["feedback"] = retry_call(
         lambda: critic_chain.invoke({
-            "report": state["report"][:3000]
+            "report": state["report"][:4000]
         })
     )
+
 
     state["feedback"] = to_text(
         state["feedback"]
@@ -225,9 +253,9 @@ Return only the important extracted information.
     return state
 
 
-# =====================================
+# =========================================================
 # STREAMLIT UI
-# =====================================
+# =========================================================
 
 st.title("🔎 Multi-Agent Research Assistant")
 
@@ -236,11 +264,47 @@ st.caption(
 )
 
 
+# =========================================================
+# SIDEBAR
+# =========================================================
+
+with st.sidebar:
+
+    st.header("🤖 About")
+
+    st.write(
+        """
+This application uses multiple AI agents
+to perform research automatically.
+
+Pipeline:
+
+🔎 Search Agent
+↓
+📄 Reader Agent
+↓
+✍️ Writer
+↓
+🧐 Critic
+"""
+    )
+
+    st.divider()
+
+    st.write(
+        "Built with Streamlit + LangChain + Groq"
+    )
+
+
+# =========================================================
+# RESEARCH FORM
+# =========================================================
+
 with st.form("research_form"):
 
     topic = st.text_input(
         "Research Topic",
-        placeholder="e.g. Latest advances in AI"
+        placeholder="e.g. Latest advances in Artificial Intelligence"
     )
 
     submit = st.form_submit_button(
@@ -249,19 +313,21 @@ with st.form("research_form"):
     )
 
 
-# =====================================
+# =========================================================
 # RUN PIPELINE
-# =====================================
+# =========================================================
 
 if submit:
 
     topic = topic.strip()
 
+
     if not topic:
 
         st.warning(
-            "Please enter a research topic."
+            "⚠️ Please enter a research topic."
         )
+
 
     else:
 
@@ -277,13 +343,17 @@ if submit:
                     status
                 )
 
+
                 status.update(
                     label="✅ Research completed",
                     state="complete"
                 )
 
+
                 st.session_state.result = result
+
                 st.session_state.topic = topic
+
 
             except Exception as e:
 
@@ -292,29 +362,37 @@ if submit:
                     state="error"
                 )
 
-                st.error(str(e))
+
+                st.error(
+                    f"Error: {str(e)}"
+                )
+
 
                 with st.expander(
-                    "Error details"
+                    "🔧 Error details"
                 ):
+
                     st.code(
                         traceback.format_exc()
                     )
 
 
-# =====================================
+# =========================================================
 # DISPLAY RESULTS
-# =====================================
+# =========================================================
 
 if "result" in st.session_state:
 
     result = st.session_state.result
 
+
     st.divider()
 
+
     st.subheader(
-        f"Results: {st.session_state.topic}"
+        f"📊 Results: {st.session_state.topic}"
     )
+
 
     report, critic, search, scrape = st.tabs([
         "📝 Report",
@@ -324,12 +402,28 @@ if "result" in st.session_state:
     ])
 
 
+    # =====================================================
+    # REPORT
+    # =====================================================
+
     with report:
 
         st.markdown(
             result["report"]
         )
 
+
+        st.download_button(
+            "⬇️ Download Report",
+            data=result["report"],
+            file_name="research_report.md",
+            mime="text/markdown",
+        )
+
+
+    # =====================================================
+    # CRITIC
+    # =====================================================
 
     with critic:
 
@@ -338,6 +432,10 @@ if "result" in st.session_state:
         )
 
 
+    # =====================================================
+    # SEARCH
+    # =====================================================
+
     with search:
 
         st.markdown(
@@ -345,16 +443,12 @@ if "result" in st.session_state:
         )
 
 
+    # =====================================================
+    # SCRAPED DATA
+    # =====================================================
+
     with scrape:
 
         st.markdown(
             result["scraped_content"]
         )
-
-
-    st.download_button(
-        "⬇️ Download Report",
-        data=result["report"],
-        file_name="research_report.md",
-        mime="text/markdown",
-    )

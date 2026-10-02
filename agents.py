@@ -5,31 +5,37 @@ from langchain_core.output_parsers import StrOutputParser
 
 from tools import web_search, web_scrape
 
-import os
-from dotenv import load_dotenv
-
-
-# Load environment variables
-load_dotenv()
-
-
-# --------------------------------------------------
-# MODEL SETUP
-# --------------------------------------------------
-
 import streamlit as st
-from langchain_groq import ChatGroq
 
-GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+
+# =========================================================
+# GROQ API KEY
+# =========================================================
+
+try:
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+except Exception:
+    st.error(
+        "GROQ_API_KEY is missing. "
+        "Please add it in Streamlit Cloud → Settings → Secrets."
+    )
+    st.stop()
+
+
+# =========================================================
+# MODEL SETUP
+# =========================================================
 
 llm = ChatGroq(
     model="openai/gpt-oss-120b",
     temperature=0,
     api_key=GROQ_API_KEY
 )
-# --------------------------------------------------
+
+
+# =========================================================
 # 1st AGENT: SEARCH AGENT
-# --------------------------------------------------
+# =========================================================
 
 def build_search_agent():
 
@@ -39,9 +45,9 @@ def build_search_agent():
     )
 
 
-# --------------------------------------------------
+# =========================================================
 # 2nd AGENT: READER AGENT
-# --------------------------------------------------
+# =========================================================
 
 def build_reader_agent():
 
@@ -51,9 +57,9 @@ def build_reader_agent():
     )
 
 
-# --------------------------------------------------
+# =========================================================
 # WRITER CHAIN
-# --------------------------------------------------
+# =========================================================
 
 writer_prompt = ChatPromptTemplate.from_messages([
     (
@@ -76,14 +82,29 @@ Research Gathered:
 
 Structure the report as:
 
-- Introduction
-- Key Findings
-  - Minimum 3 well-explained points
-- Conclusion
-- Sources
-  - List all URLs found in the research
+# Introduction
 
-Be detailed, factual and professional.
+Explain the topic briefly.
+
+# Key Findings
+
+Give at least 3 important and well-explained findings.
+
+# Conclusion
+
+Give a concise conclusion based only on the research.
+
+# Sources
+
+List the URLs found in the research.
+
+Rules:
+
+- Be factual.
+- Do not invent information.
+- Do not repeat the same point.
+- Use clear headings.
+- Keep the report professional.
 """
     ),
 ])
@@ -96,9 +117,9 @@ writer_chain = (
 )
 
 
-# --------------------------------------------------
+# =========================================================
 # CRITIC CHAIN
-# --------------------------------------------------
+# =========================================================
 
 critic_prompt = ChatPromptTemplate.from_messages([
     (
@@ -110,12 +131,12 @@ critic_prompt = ChatPromptTemplate.from_messages([
     (
         "human",
         """
-Review the research report below and evaluate it strictly.
+Review the research report below.
 
 Report:
 {report}
 
-Respond in the exact format:
+Respond in exactly this format:
 
 Score: X/10
 
@@ -142,4 +163,3 @@ critic_chain = (
     | llm
     | StrOutputParser()
 )
-
