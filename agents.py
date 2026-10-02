@@ -17,13 +17,16 @@ load_dotenv()
 # MODEL SETUP
 # --------------------------------------------------
 
+import streamlit as st
+from langchain_groq import ChatGroq
+
+GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+
 llm = ChatGroq(
     model="openai/gpt-oss-120b",
     temperature=0,
-    api_key=os.getenv("GROQ_API_KEY")
+    api_key=GROQ_API_KEY
 )
-
-
 # --------------------------------------------------
 # 1st AGENT: SEARCH AGENT
 # --------------------------------------------------
